@@ -100,9 +100,12 @@ La aplicación se conecta a la **API RESTful del sistema Clínica Salud Total**,
 
 ---
 
-## 🧑‍💻 Autor
+## 🧑‍💻 Autores
 
-* 👨‍💻 **Juan Gabriel Pared** – Desarrollo mobile, conexión a API y coordinación general del proyecto
+* 👨‍💻 **Enzo Ríos**
+* 👨‍💻 **Juan Francisco Barlett**
+* 👨‍💻 **Leonel Fernández**
+* 👨‍💻 **Juan Gabriel Pared**
 
 ---
 

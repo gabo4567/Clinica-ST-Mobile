@@ -33,11 +33,17 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(usuario) {
                     if (usuario == null) {
                         navController.navigate(NavRoutes.Login) {
-                            popUpTo(0) // limpia el backstack
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
                         }
                     } else {
                         navController.navigate(NavRoutes.Home) {
-                            popUpTo(0)
+                            popUpTo(navController.graph.startDestinationId) {
+                                inclusive = true
+                            }
+                            launchSingleTop = true
                         }
                     }
                 }
@@ -50,13 +56,23 @@ class MainActivity : ComponentActivity() {
                         LoginScreen(viewModel = loginViewModel)
                     }
                     composable(NavRoutes.Home) {
-                        HomeScreen(
-                            usuario = usuario!!,
-                            onVerTurnosClick = { navController.navigate(NavRoutes.Turnos) },
-                            onVerPacientesClick = { navController.navigate(NavRoutes.Pacientes) },
-                            onVerProfesionalesClick = { navController.navigate(NavRoutes.Profesionales) },
-                            onCerrarSesionClick = { loginViewModel.cerrarSesion() }
-                        )
+                        val usuarioLocal = usuario
+                        if (usuarioLocal != null) {
+                            HomeScreen(
+                                usuario = usuarioLocal,
+                                onVerTurnosClick = { navController.navigate(NavRoutes.Turnos) },
+                                onVerPacientesClick = { navController.navigate(NavRoutes.Pacientes) },
+                                onVerProfesionalesClick = { navController.navigate(NavRoutes.Profesionales) },
+                                onCerrarSesionClick = { loginViewModel.cerrarSesion() }
+                            )
+                        } else {
+                            LaunchedEffect(Unit) {
+                                navController.navigate(NavRoutes.Login) {
+                                    popUpTo(navController.graph.startDestinationId) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        }
                     }
                     composable(NavRoutes.Turnos) {
                         TurnosScreen()
@@ -68,6 +84,7 @@ class MainActivity : ComponentActivity() {
                         ProfesionalesScreen()
                     }
                 }
+
             }
         }
     }

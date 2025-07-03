@@ -10,6 +10,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.appclinicamobile.viewmodel.LoginViewModel
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.ui.platform.LocalContext
+import com.example.appclinicamobile.network.TokenManager
 
 @Composable
 fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
@@ -18,6 +20,9 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
 
     val usuario by viewModel.usuarioAutenticado.observeAsState()
     val error by viewModel.error.observeAsState()
+
+    val context = LocalContext.current
+    val tokenManager = remember { TokenManager(context) }
 
     Column(
         modifier = Modifier
@@ -53,7 +58,10 @@ fun LoginScreen(viewModel: LoginViewModel = viewModel()) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(onClick = {
-            viewModel.login(nombreUsuario, contrasena)
+            viewModel.login(nombreUsuario, contrasena) { usuario ->
+                tokenManager.guardarToken(usuario.token)
+            }
+
         }) {
             Text("Ingresar")
         }

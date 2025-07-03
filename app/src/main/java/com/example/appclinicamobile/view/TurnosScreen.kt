@@ -1,6 +1,7 @@
 package com.example.appclinicamobile.view
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,6 +34,10 @@ fun TurnosScreen(viewModel: TurnoViewModel = viewModel()) {
     var turnoSeleccionadoParaEditar by remember { mutableStateOf<TurnoDTO?>(null) }
     var turnoSeleccionadoParaEliminar by remember { mutableStateOf<TurnoDTO?>(null) }
 
+    var turnoSeleccionadoParaVerDetalle by remember { mutableStateOf<TurnoDTO?>(null) }
+    var mostrarConfirmacionDetalle by remember { mutableStateOf(false) }
+    var mostrarDetalleTurno by remember { mutableStateOf(false) }
+
 
     Column(
         modifier = Modifier
@@ -59,16 +64,17 @@ fun TurnosScreen(viewModel: TurnoViewModel = viewModel()) {
             items(turnos) { turno ->
                 TurnoCard(
                     turno,
-                    onEditarClick = { turnoSeleccionado ->
-                        turnoSeleccionadoParaEditar = turnoSeleccionado
+                    onClick = {
+                        turnoSeleccionadoParaVerDetalle = it
+                        mostrarConfirmacionDetalle = true
                     },
-                    onEliminarClick = { turnoSeleccionado ->
-                        turnoSeleccionadoParaEliminar = turnoSeleccionado
-                    }
+                    onEditarClick = { turnoSeleccionado -> turnoSeleccionadoParaEditar = turnoSeleccionado },
+                    onEliminarClick = { turnoSeleccionado -> turnoSeleccionadoParaEliminar = turnoSeleccionado }
                 )
                 Spacer(modifier = Modifier.height(12.dp))
             }
         }
+
 
     }
 
@@ -123,51 +129,84 @@ fun TurnosScreen(viewModel: TurnoViewModel = viewModel()) {
         )
     }
 
-}
+    if (mostrarConfirmacionDetalle && turnoSeleccionadoParaVerDetalle != null) {
+        AlertDialog(
+            onDismissRequest = { mostrarConfirmacionDetalle = false },
+            title = { Text("Ver detalle del turno") },
+            text = { Text("¿Querés ver la duración y observaciones del turno?") },
+            confirmButton = {
+                Button(onClick = {
+                    mostrarConfirmacionDetalle = false
+                    mostrarDetalleTurno = true  // Estado para mostrar detalle, que creamos a continuación
+                }) {
+                    Text("Sí")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = {
+                    mostrarConfirmacionDetalle = false
+                    turnoSeleccionadoParaVerDetalle = null
+                }) {
+                    Text("No")
+                }
+            }
+        )
+    }
 
+    if (mostrarDetalleTurno && turnoSeleccionadoParaVerDetalle != null) {
+        DetalleTurnoDialog(
+            turno = turnoSeleccionadoParaVerDetalle!!,
+            onDismiss = {
+                mostrarDetalleTurno = false
+                turnoSeleccionadoParaVerDetalle = null
+            }
+        )
+    }
+
+
+
+}
 
 @Composable
 fun TurnoCard(
     turno: TurnoDTO,
+    onClick: (TurnoDTO) -> Unit,      // Nuevo para click en toda la card
     onEditarClick: (TurnoDTO) -> Unit,
     onEliminarClick: (TurnoDTO) -> Unit
-)
- {
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick(turno) },  // Aquí capturamos click en la card
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = "Comprobante: ${turno.comprobante}", style = MaterialTheme.typography.bodyMedium)
             Text(text = "Fecha y Hora: ${turno.fechaHora}")
-            Text(text = "Duración: ${turno.duracion} min")
             Text(text = "Estado: ${turno.estado}")
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = "Paciente: ${turno.paciente.nombre} ${turno.paciente.apellido}")
             Text(text = "Profesional: ${turno.profesional.nombre} ${turno.profesional.apellido}")
             Text(text = "Especialidad: ${turno.profesional.especialidad}")
-            if (turno.observaciones.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = "Observaciones: ${turno.observaciones}")
-            }
+            // No mostrar duración ni observaciones aquí
         }
     }
-     Spacer(modifier = Modifier.height(8.dp))
-     Row(
-         modifier = Modifier.fillMaxWidth(),
-         horizontalArrangement = Arrangement.End,
-         verticalAlignment = Alignment.CenterVertically
-     ) {
-         TextButton(onClick = { onEliminarClick(turno) }) {
-             Text("Eliminar", color = MaterialTheme.colorScheme.error)
-         }
-         Spacer(modifier = Modifier.width(8.dp))
-         TextButton(onClick = { onEditarClick(turno) }) {
-             Text("Editar")
-         }
-     }
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = { onEliminarClick(turno) }) {
+            Text("Eliminar", color = MaterialTheme.colorScheme.error)
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        TextButton(onClick = { onEditarClick(turno) }) {
+            Text("Editar")
+        }
+    }
+}
 
- }
 
 @Composable
 fun MensajeCentradoDialog(
@@ -217,4 +256,35 @@ fun ConfirmarEliminarDialog(
         }
     )
 }
+
+@Composable
+fun DetalleTurnoDialog(
+    turno: TurnoDTO,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Detalle del turno") },
+        text = {
+            Column {
+                Text("Comprobante: ${turno.comprobante}")
+                Text("Fecha y Hora: ${turno.fechaHora}")
+                Text("Estado: ${turno.estado}")
+                Text("Paciente: ${turno.paciente.nombre} ${turno.paciente.apellido}")
+                Text("Profesional: ${turno.profesional.nombre} ${turno.profesional.apellido}")
+                Text("Especialidad: ${turno.profesional.especialidad}")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Duración: ${turno.duracion} minutos")
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Observaciones: ${turno.observaciones.ifBlank { "Sin observaciones" }}")
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Cerrar")
+            }
+        }
+    )
+}
+
 

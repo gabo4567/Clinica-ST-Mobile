@@ -18,13 +18,18 @@ class LoginViewModel : ViewModel() {
     val error: LiveData<String?> = _error
 
 
-    fun login(nombreUsuario: String, contrasena: String) {
+    fun login(
+        nombreUsuario: String,
+        contrasena: String,
+        onLoginExitoso: ((UsuarioAutenticadoDTO) -> Unit)? = null
+    ) {
         val loginDTO = LoginDTO(nombreUsuario, contrasena)
         val resultado = repository.login(loginDTO)
 
         if (resultado != null) {
             _usuarioAutenticado.value = resultado
             _error.value = null
+            onLoginExitoso?.invoke(resultado)
         } else {
             _usuarioAutenticado.value = null
             _error.value = "Usuario o contraseña incorrectos"
@@ -33,6 +38,8 @@ class LoginViewModel : ViewModel() {
 
     fun cerrarSesion() {
         _usuarioAutenticado.value = null
+        // tokenManager.eliminarToken()
     }
+
 
 }

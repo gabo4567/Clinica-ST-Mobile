@@ -16,7 +16,7 @@ object RestClient {
                 .build()
 
             retrofit = Retrofit.Builder()
-                .baseUrl("https://api.saludtotal.com/") // ← Reemplazalo cuando tengas la URL real
+                .baseUrl("http://192.168.0.191:5276/api/")
                 .addConverterFactory(GsonConverterFactory.create())
                 .client(client)
                 .build()

@@ -82,15 +82,11 @@ fun TurnosScreen(viewModel: TurnoViewModel = viewModel()) {
         AgregarTurnoDialog(
             onDismiss = { mostrarDialogo = false },
             onConfirm = { nuevoTurno ->
-                val exito = try {
-                    viewModel.agregarTurnoSimulado(nuevoTurno)
-                    true
-                } catch (e: Exception) {
-                    false
+                viewModel.agregarTurno(nuevoTurno) { exito ->
+                    mostrarDialogo = false
+                    mensajeDialogo = if (exito) "Turno agregado con éxito" else "No se pudo agregar el turno"
                 }
 
-                mostrarDialogo = false
-                mensajeDialogo = if (exito) "Turno agregado con éxito" else "No se pudo agregar el turno"
             }
         )
     }
@@ -100,9 +96,10 @@ fun TurnosScreen(viewModel: TurnoViewModel = viewModel()) {
             turno = turnoSeleccionadoParaEditar!!,
             onDismiss = { turnoSeleccionadoParaEditar = null },
             onConfirm = { turnoEditado ->
-                viewModel.actualizarTurnoSimulado(turnoEditado)
+                viewModel.actualizarTurno(turnoEditado)
                 turnoSeleccionadoParaEditar = null
                 mensajeDialogo = "Turno actualizado con éxito"
+
             }
         )
     }
@@ -119,8 +116,8 @@ fun TurnosScreen(viewModel: TurnoViewModel = viewModel()) {
         ConfirmarEliminarDialog(
             turno = turnoSeleccionadoParaEliminar!!,
             onConfirmar = {
-                viewModel.eliminarTurnoSimulado(turnoSeleccionadoParaEliminar!!)
-                mensajeDialogo = "Turno eliminado con éxito"
+                viewModel.cancelarTurno(turnoSeleccionadoParaEliminar!!)
+                mensajeDialogo = "Turno cancelado con éxito"
                 turnoSeleccionadoParaEliminar = null
             },
             onCancelar = {
@@ -286,5 +283,3 @@ fun DetalleTurnoDialog(
         }
     )
 }
-
-

@@ -1,5 +1,7 @@
 package com.example.appclinicamobile.view.components
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -7,12 +9,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.appclinicamobile.model.*
 import com.example.appclinicamobile.network.FakeApiService
+import com.example.appclinicamobile.repository.EspecialidadRepositoryReal
+import com.example.appclinicamobile.repository.HorarioDisponibleRepositoryReal
+import com.example.appclinicamobile.repository.PacienteRepositoryReal
+import com.example.appclinicamobile.repository.ProfesionalRepositoryReal
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
 
 fun obtenerFechaProximaDelDia(nombreDia: String): String {
     val dayOfWeek = when (nombreDia.lowercase()) {
@@ -39,16 +50,25 @@ fun AgregarTurnoDialog(
     onDismiss: () -> Unit,
     onConfirm: (RegistroTurnoDTO) -> Unit
 ) {
-    val api = FakeApiService()
+    // val api = FakeApiService()
+
+    val context = LocalContext.current
+
+    val pacienteRepository = remember { PacienteRepositoryReal(context) }
+    val especialidadRepository = remember { EspecialidadRepositoryReal(context) }
+    val profesionalRepository = remember { ProfesionalRepositoryReal(context) }
+    val horarioRepository = remember { HorarioDisponibleRepositoryReal(context) }
+
+    var pacienteList by remember { mutableStateOf<List<PacienteDTO>>(emptyList()) }
+    var especialidades by remember { mutableStateOf<List<EspecialidadDTO>>(emptyList()) }
+    var profesionales by remember { mutableStateOf<List<ProfesionalDTO>>(emptyList()) }
 
     var dni by remember { mutableStateOf("") }
     var nombre by remember { mutableStateOf("") }
     var apellido by remember { mutableStateOf("") }
     var telefono by remember { mutableStateOf("") }
 
-    var especialidades = remember { api.obtenerEspecialidades() }
     var especialidadSeleccionada by remember { mutableStateOf<EspecialidadDTO?>(null) }
-
     var profesionalesFiltrados by remember { mutableStateOf<List<ProfesionalDTO>>(emptyList()) }
     var profesionalSeleccionado by remember { mutableStateOf<ProfesionalDTO?>(null) }
 
@@ -57,6 +77,27 @@ fun AgregarTurnoDialog(
 
     var horariosDisponibles by remember { mutableStateOf<List<String>>(emptyList()) }
     var horarioSeleccionado by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        pacienteList = withContext(Dispatchers.IO) { pacienteRepository.getPacientes() }
+        especialidades = withContext(Dispatchers.IO) { especialidadRepository.getEspecialidades() }
+        profesionales = withContext(Dispatchers.IO) { profesionalRepository.getProfesionales() }
+    }
+
+    LaunchedEffect(profesionalSeleccionado) {
+        profesionalSeleccionado?.let { prof ->
+            val horarios = withContext(Dispatchers.IO) {
+                horarioRepository.getHorariosDisponibles(prof.id)
+            }
+            fechasDisponibles = horarios.map {
+                it.diaSemana to obtenerFechaProximaDelDia(it.diaSemana)
+            }.distinct()
+            horariosDisponibles = emptyList()
+            fechaSeleccionada = null
+            horarioSeleccionado = null
+        }
+    }
+
 
     val diasConFechas = remember(horariosDisponibles) {
         horariosDisponibles.map { diaSemana: String ->
@@ -68,8 +109,9 @@ fun AgregarTurnoDialog(
     val fechasMostrar = fechasDisponibles.map { "${it.first} - ${it.second}" }
 
     fun buscarPacientePorDni(dni: String): PacienteDTO? {
-        return api.obtenerPacientes().find { it.dni == dni }
+        return pacienteList.find { it.dni == dni }
     }
+
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -77,14 +119,27 @@ fun AgregarTurnoDialog(
             Button(
                 onClick = {
                     val fechaNum = fechaSeleccionada?.substringAfter(" - ") ?: ""
-                    val registro = RegistroTurnoDTO(
-                        idPaciente = api.obtenerPacientes().first { it.dni == dni }.id,
-                        idProfesional = profesionalSeleccionado?.id ?: 0,
-                        fechaHora = "${fechaNum}T${horarioSeleccionado}:00",
-                        duracion = 30,
-                        observaciones = "Turno solicitado desde app mobile"
-                    )
-                    onConfirm(registro)
+                    val paciente = pacienteList.find { it.dni == dni }
+                    val profesional = profesionalSeleccionado
+
+                    if (paciente != null && profesional != null && fechaSeleccionada != null && horarioSeleccionado != null) {
+                        val fechaNum = fechaSeleccionada!!.substringAfter(" - ")
+                        val fechaHora = "${fechaNum}T${horarioSeleccionado}:00"
+
+                        val registro = RegistroTurnoDTO(
+                            idPaciente = paciente.id,
+                            idProfesional = profesional.id,
+                            fechaHora = fechaHora,
+                            duracion = 30,
+                            observaciones = "Turno solicitado desde app mobile"
+                        )
+                        Log.d("AgregarTurno", "Paciente ID: ${paciente.id}, Profesional ID: ${profesional.id}, FechaHora: $fechaHora")
+
+                        onConfirm(registro)
+                    } else {
+                        Toast.makeText(context, "Faltan datos válidos para registrar el turno", Toast.LENGTH_LONG).show()
+                    }
+
                 },
                 enabled = dni.isNotBlank() && profesionalSeleccionado != null &&
                         fechaSeleccionada != null && horarioSeleccionado != null
@@ -111,7 +166,7 @@ fun AgregarTurnoDialog(
                     value = dni,
                     onValueChange = {
                         dni = it
-                        val paciente = api.obtenerPacientes().find { p -> p.dni == it }
+                        val paciente = buscarPacientePorDni(it)
                         if (paciente != null) {
                             nombre = paciente.nombre
                             apellido = paciente.apellido
@@ -160,16 +215,20 @@ fun AgregarTurnoDialog(
                     selectedItem = especialidadSeleccionada?.nombre,
                     onItemSelected = { selected ->
                         especialidadSeleccionada = especialidades.find { it.nombre == selected }
-                        profesionalesFiltrados = api.obtenerProfesionales()
-                            .filter { it.idEspecialidad == especialidadSeleccionada?.id }
+                        profesionalesFiltrados = profesionales.filter {
+                            it.idEspecialidad == especialidadSeleccionada?.id
+                        }
                         profesionalSeleccionado = null
                     }
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                val coroutineScope = rememberCoroutineScope()
+
                 // Profesional
                 Text("Profesional")
+
                 DropdownMenuBox(
                     items = profesionalesFiltrados.map { "${it.nombre} ${it.apellido}" },
                     selectedItem = profesionalSeleccionado?.let { "${it.nombre} ${it.apellido}" },
@@ -177,13 +236,23 @@ fun AgregarTurnoDialog(
                         profesionalSeleccionado = profesionalesFiltrados.find {
                             "${it.nombre} ${it.apellido}" == selected
                         }
-                        val horarios = api.obtenerHorariosDisponibles(profesionalSeleccionado?.id ?: 0)
-                        fechasDisponibles = horarios
-                            .map { it.diaSemana to obtenerFechaProximaDelDia(it.diaSemana) }
-                            .distinct()
-                        horariosDisponibles = emptyList()
-                        fechaSeleccionada = null
-                        horarioSeleccionado = null
+
+                        // Ejecutar la carga de horarios con corutinas
+                        coroutineScope.launch {
+                            profesionalSeleccionado?.let { prof ->
+                                val horarios = withContext(Dispatchers.IO) {
+                                    horarioRepository.getHorariosDisponibles(prof.id)
+                                }
+
+                                fechasDisponibles = horarios
+                                    .map { it.diaSemana to obtenerFechaProximaDelDia(it.diaSemana) }
+                                    .distinct()
+
+                                horariosDisponibles = emptyList()
+                                fechaSeleccionada = null
+                                horarioSeleccionado = null
+                            }
+                        }
                     }
                 )
 
@@ -197,11 +266,22 @@ fun AgregarTurnoDialog(
                     onItemSelected = { selected ->
                         fechaSeleccionada = selected
                         val fechaNum = selected.substringAfter(" - ")
-                        horariosDisponibles = api.obtenerHorariosDisponibles(profesionalSeleccionado?.id ?: 0)
-                            .filter { obtenerFechaProximaDelDia(it.diaSemana) == fechaNum }
-                            .map { it.horaInicio }
+
+                        coroutineScope.launch {
+                            profesionalSeleccionado?.let { prof ->
+                                val horarios = withContext(Dispatchers.IO) {
+                                    horarioRepository.getHorariosDisponibles(prof.id)
+                                }
+                                horariosDisponibles = horarios
+                                    .filter {
+                                        obtenerFechaProximaDelDia(it.diaSemana) == fechaNum
+                                    }
+                                    .map { it.horaInicio }
+                            }
+                        }
                     }
                 )
+
 
                 Spacer(modifier = Modifier.height(8.dp))
 

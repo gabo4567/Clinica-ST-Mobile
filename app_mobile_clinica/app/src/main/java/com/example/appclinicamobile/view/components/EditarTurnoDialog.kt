@@ -4,9 +4,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.appclinicamobile.model.*
 import com.example.appclinicamobile.network.FakeApiService
+import com.example.appclinicamobile.repository.EspecialidadRepositoryReal
+import com.example.appclinicamobile.repository.HorarioDisponibleRepositoryReal
+import com.example.appclinicamobile.repository.ProfesionalRepositoryReal
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun EditarTurnoDialog(
@@ -14,25 +21,37 @@ fun EditarTurnoDialog(
     onDismiss: () -> Unit,
     onConfirm: (TurnoDTO) -> Unit
 ) {
-    val api = FakeApiService()
+    // val api = FakeApiService()
 
-    val especialidades = remember { api.obtenerEspecialidades() }
+    val context = LocalContext.current
 
-    // Especialidad seleccionada inicialmente (la del turno)
+    val especialidadRepository = remember { EspecialidadRepositoryReal(context) }
+    val profesionalRepository = remember { ProfesionalRepositoryReal(context) }
+    val horarioRepository = remember { HorarioDisponibleRepositoryReal(context) }
+
+    val coroutineScope = rememberCoroutineScope()
+
+
+    var especialidades by remember { mutableStateOf<List<EspecialidadDTO>>(emptyList()) }
+    var profesionales by remember { mutableStateOf<List<ProfesionalDTO>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        especialidades = withContext(Dispatchers.IO) { especialidadRepository.getEspecialidades() }
+        profesionales = withContext(Dispatchers.IO) { profesionalRepository.getProfesionales() }
+    }
+
     var especialidadSeleccionada by remember {
         mutableStateOf(especialidades.find { it.nombre == turno.profesional.especialidad })
     }
 
-    // Profesionales filtrados según la especialidad seleccionada
     var profesionalesFiltrados by remember {
         mutableStateOf(
             especialidadSeleccionada?.let {
-                api.obtenerProfesionales().filter { prof -> prof.idEspecialidad == it.id }
+                profesionales.filter { prof -> prof.idEspecialidad == it.id }
             } ?: emptyList()
         )
     }
 
-    // Profesional seleccionado inicialmente (el del turno)
     var profesionalSeleccionado by remember {
         mutableStateOf(
             profesionalesFiltrados.find {
@@ -58,7 +77,9 @@ fun EditarTurnoDialog(
     // Inicializar fechasDisponibles, fechaSeleccionada, horariosDisponibles y horarioSeleccionado al iniciar el diálogo
     LaunchedEffect(profesionalSeleccionado) {
         profesionalSeleccionado?.let { prof ->
-            val horarios = api.obtenerHorariosDisponibles(prof.id)
+            val horarios = withContext(Dispatchers.IO) {
+                horarioRepository.getHorariosDisponibles(prof.id)
+            }
 
             // Armar la lista "Día - Fecha"
             fechasDisponibles = horarios
@@ -99,7 +120,7 @@ fun EditarTurnoDialog(
                         fechaHora = "${fechaNum}T${hora}:00",
                         duracion = turno.duracion,
                         estado = turno.estado,
-                        observaciones = turno.observaciones,
+                        observaciones = turno.observaciones ?: "",
                         paciente = turno.paciente,
                         profesional = ProfesionalMiniDTO(
                             id = profesionalSeleccionado!!.id,
@@ -132,13 +153,16 @@ fun EditarTurnoDialog(
                     items = especialidades.map { it.nombre },
                     selectedItem = especialidadSeleccionada?.nombre ?: "",
                     onItemSelected = { selected ->
+                        // Buscar la especialidad seleccionada
                         especialidadSeleccionada = especialidades.find { it.nombre == selected }
-                        profesionalesFiltrados = especialidadSeleccionada?.let {
-                            api.obtenerProfesionales().filter { prof -> prof.idEspecialidad == it.id }
-                        } ?: emptyList()
-                        profesionalSeleccionado = null
 
-                        // Reiniciar fechas y horarios porque profesional cambió
+                        // Filtrar profesionales que pertenezcan a esa especialidad
+                        profesionalesFiltrados = especialidadSeleccionada?.let { especialidad ->
+                            profesionales.filter { it.idEspecialidad == especialidad.id }
+                        } ?: emptyList()
+
+                        // Resetear selecciones dependientes
+                        profesionalSeleccionado = null
                         fechasDisponibles = emptyList()
                         fechaSeleccionada = null
                         horariosDisponibles = emptyList()
@@ -158,20 +182,24 @@ fun EditarTurnoDialog(
                             "${it.nombre} ${it.apellido}" == selected
                         }
 
-                        // Cuando se selecciona profesional, actualizar fechasDisponibles
-                        profesionalSeleccionado?.let { prof ->
-                            val horarios = api.obtenerHorariosDisponibles(prof.id)
-                            fechasDisponibles = horarios
-                                .map { it.diaSemana to obtenerFechaProximaDelDia(it.diaSemana) }
-                                .distinct()
-                                .map { "${it.first} - ${it.second}" }
+                        coroutineScope.launch {
+                            profesionalSeleccionado?.let { prof ->
+                                val horarios = withContext(Dispatchers.IO) {
+                                    horarioRepository.getHorariosDisponibles(prof.id)
+                                }
 
-                            // Resetear fecha y horarios
-                            fechaSeleccionada = null
-                            horariosDisponibles = emptyList()
-                            horarioSeleccionado = null
+                                fechasDisponibles = horarios
+                                    .map { it.diaSemana to obtenerFechaProximaDelDia(it.diaSemana) }
+                                    .distinct()
+                                    .map { "${it.first} - ${it.second}" }
+
+                                fechaSeleccionada = null
+                                horariosDisponibles = emptyList()
+                                horarioSeleccionado = null
+                            }
                         }
                     }
+
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -183,15 +211,21 @@ fun EditarTurnoDialog(
                     selectedItem = fechaSeleccionada ?: "",
                     onItemSelected = { selected ->
                         fechaSeleccionada = selected
-
-                        // Al seleccionar fecha, actualizar horarios disponibles
                         val diaSeleccionado = selected.substringBefore(" - ")
-                        profesionalSeleccionado?.let { prof ->
-                            horariosDisponibles = api.obtenerHorariosDisponibles(prof.id)
-                                .filter { it.diaSemana == diaSeleccionado }
-                                .map { it.horaInicio }
+
+                        coroutineScope.launch {
+                            profesionalSeleccionado?.let { prof ->
+                                val horarios = withContext(Dispatchers.IO) {
+                                    horarioRepository.getHorariosDisponibles(prof.id)
+                                }
+
+                                horariosDisponibles = horarios
+                                    .filter { it.diaSemana == diaSeleccionado }
+                                    .map { it.horaInicio }
+
+                                horarioSeleccionado = null
+                            }
                         }
-                        horarioSeleccionado = null
                     }
                 )
 

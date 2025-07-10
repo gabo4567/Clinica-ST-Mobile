@@ -1,22 +1,40 @@
 package com.example.appclinicamobile.viewmodel
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.appclinicamobile.model.PacienteDTO
-import com.example.appclinicamobile.network.FakeApiService
+import com.example.appclinicamobile.repository.PacienteRepositoryReal
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class PacienteViewModel : ViewModel() {
+class PacienteViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val apiService = FakeApiService()
-    private val _todosLosPacientes = apiService.obtenerPacientes()
+    private val repo = PacienteRepositoryReal(application)
+
+    private val _todosLosPacientes = mutableListOf<PacienteDTO>()
 
     private val _pacientesFiltrados = MutableLiveData<List<PacienteDTO>>()
     val pacientes: LiveData<List<PacienteDTO>> = _pacientesFiltrados
 
     init {
-        // Mostrar todos los pacientes al iniciar
-        _pacientesFiltrados.value = _todosLosPacientes
+        // Carga inicial desde API
+        viewModelScope.launch {
+            try {
+                val pacientesDesdeApi = withContext(Dispatchers.IO) {
+                    repo.getPacientes()
+                }
+                _todosLosPacientes.clear()
+                _todosLosPacientes.addAll(pacientesDesdeApi)
+                _pacientesFiltrados.value = pacientesDesdeApi
+            } catch (e: Exception) {
+                // En caso de error, podés mostrar algo vacío o loguear el error
+                _pacientesFiltrados.value = emptyList()
+            }
+        }
     }
 
     fun filtrarPorDni(dni: String) {

@@ -1,14 +1,20 @@
 package com.example.appclinicamobile.viewmodel
 
+import android.app.Application
+import android.util.Log
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.appclinicamobile.model.ProfesionalDTO
 import com.example.appclinicamobile.network.FakeApiService
+import com.example.appclinicamobile.repository.ProfesionalRepositoryReal
+import kotlinx.coroutines.launch
 
-class ProfesionalViewModel : ViewModel() {
+class ProfesionalViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val apiService = FakeApiService()
+    private val repository = ProfesionalRepositoryReal(application.applicationContext)
 
     private val _profesionales = MutableLiveData<List<ProfesionalDTO>>()
     val profesionales: LiveData<List<ProfesionalDTO>> = _profesionales
@@ -17,9 +23,15 @@ class ProfesionalViewModel : ViewModel() {
     val profesionalesFiltrados: LiveData<List<ProfesionalDTO>> = _profesionalesFiltrados
 
     init {
-        val lista = apiService.obtenerProfesionales()
-        _profesionales.value = lista
-        _profesionalesFiltrados.value = lista
+        viewModelScope.launch {
+            try {
+                val lista = repository.getProfesionales()
+                _profesionales.value = lista
+                _profesionalesFiltrados.value = lista
+            } catch (e: Exception) {
+                Log.e("ProfesionalViewModel", "Error al obtener profesionales: ${e.message}")
+            }
+        }
     }
 
     fun filtrarPorTexto(texto: String) {
@@ -30,3 +42,4 @@ class ProfesionalViewModel : ViewModel() {
         _profesionalesFiltrados.value = listaFiltrada
     }
 }
+

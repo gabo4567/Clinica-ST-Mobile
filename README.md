@@ -104,7 +104,7 @@ La aplicación se conecta a la **API RESTful del sistema Clínica Salud Total**,
 
 * 👨‍💻 **Enzo Ríos**
 * 👨‍💻 **Juan Francisco Barlett**
-* 👨‍💻 **Leonel Fernández**
+* 👨‍💻 **Leonel Fernandez**
 * 👨‍💻 **Juan Gabriel Pared**
 
 ---

@@ -86,12 +86,6 @@ La aplicación se conecta a la **API RESTful del sistema Clínica Salud Total**,
 
 ---
 
-## 📸 Capturas de pantalla
-
-> *(Aquí se incluirán capturas reales de la app funcionando)*
-
----
-
 ## 📄 Documentación adicional
 
 * Descripción del escenario elegido: **Clínica médica con sistema de gestión de turnos**
